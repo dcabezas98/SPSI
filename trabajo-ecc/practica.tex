@@ -1,0 +1,195 @@
+\documentclass{article}
+\usepackage[left=1.8cm,right=3cm,top=2cm,bottom=2cm]{geometry} % page
+% settings
+\usepackage{multicol}
+\usepackage{amsmath,amsthm,amssymb}
+\usepackage{amsfonts}
+\usepackage{dsfont}
+\usepackage{upgreek}
+\usepackage{parskip}
+\usepackage[spanish]{babel}
+\usepackage[doument]{ragged2e}
+
+% Images
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{subfigure} % subfiguras
+\usepackage{caption}
+\captionsetup[table]{labelformat=empty}
+\captionsetup[figure]{labelformat=empty}
+
+% Code
+\usepackage{tikz}
+\usetikzlibrary{automata,positioning}
+\usepackage{pgfplots}
+\usepackage{color}
+
+\usepackage{listings}
+\usepackage{xcolor}
+\definecolor{gray}{rgb}{0.5,0.5,0.5}
+\newcommand{\n}[1]{{\color{gray}#1}}
+\lstset{numbers=left,numberstyle=\small\color{gray}}
+
+\usepackage[bookmarks=true,
+            bookmarksnumbered=false, % true means bookmarks in 
+                                     % left window are numbered
+            bookmarksopen=false,     % true means only level 1
+                                     % are displayed.
+            colorlinks=true,
+            allcolors=blue,
+            urlcolor=cyan]{hyperref}
+
+\selectlanguage{spanish}
+\usepackage[utf8]{inputenc}
+\setlength{\parindent}{0mm}
+
+\usepackage{xcolor}
+\usepackage{listings}
+\lstset{basicstyle=\ttfamily,
+  showstringspaces=false,
+  numbers=none
+}
+
+\begin{document}
+
+\title{\Huge \textbf{Cifrado con curvas elípticas usando OpenSSL}} \author{Yabir
+García Benchakhtir\\ David Cabezas Berrido\\ Patricia Córdoba Hidalgo
+} \date{}
+\maketitle
+
+\section{Introducción}
+
+OpenSSL es una herramienta muy completa con la que hemos trabajado en la
+asignatura y que además nos da la facilidad para trabajar también con curvas
+elípticas. En esta práctica vamos a realizar pasos análogos a lo que hemos visto
+durante el curso pero aplicando la teoría de curvas elípticas. 
+
+\section{Detalles a tener en cuenta}
+
+Durante nuestros intentos de cifrar y descifrar utilizando ECC hemos encontrado
+\href{https://stackoverflow.com/a/58942471/2588566}{este comentario} donde se
+nos indica que no podemos realizar estos pasos directamente usando ECC. Usamos
+lo que se ha llama \textit{Elliptic Curve Integrated Encryption Scheme}.
+
+\section{Taller de criptografía}
+
+En primer lugar comentamos que OpenSSL nos ofrece una serie de curvas ya
+definidas en su utilidad para terminal. Tenemos la posibilidad de listar las
+curvas disponibles utilizando:
+
+\begin{lstlisting}[language=bash]
+  openssl ecparam -list_curves
+\end{lstlisting}
+
+tras ejecutar esta instrucción se nos mostrará una lista con distintas curvas
+conocidas. Para continuar con el taller vamos a elegir una de estas curvas,
+en nuestro caso \textit{secp256k1} que es una curva famosa y bastante segura.
+
+Para crear un archivo de configuración para la curva utilizamos 
+
+\begin{lstlisting}[language=bash]
+  openssl ecparam -name secp256k1 -out secp256k1.pem
+\end{lstlisting}
+
+que creará un achivo \textit{secp256k1.pem} con información sobre la curva. Si
+ahora hacemos
+
+\begin{lstlisting}[language=bash]
+  openssl ecparam -in secp256k1.pem -text -param_enc explicit -noout
+\end{lstlisting}
+
+obtenemos información sobre los parametros elegidos como: 
+
+\begin{itemize}
+  \item Los parámetros $A$ y $B$ de la ecuación de la curva.
+  \item El número primo elegido para el cuerpo sobre el que se construye la curva.
+  \item El generador del punto cíclico, $G$.
+  \item El orden del grupo $<G>$.
+  \item El cofactor del grupo cíclico.
+\end{itemize}
+
+Una vez elegida la curva procedemos ahora a crear la clave privada. Para ello
+utilizamos 
+
+\label{genkey}
+\begin{lstlisting}[language=bash]
+  openssl ecparam -in secp256k1.pem -genkey -noout -out userS-privkey.pem
+\end{lstlisting}
+
+Con esta orden le indicamos que genere en un archivo \textit{userS-privkey.pem}
+una clave privada partiendo del archivo de configuración para la curva que hemos
+generado anteriormente. Si deseamos ver la información de la clave privada y la pública asociada que
+hemos generado podemos usar 
+
+\begin{lstlisting}[language=bash]
+  openssl ec -in userS-privkey.pem -text -noout
+\end{lstlisting}
+
+Si queremos guardar la clave pública en un archivo tenemos que hacer 
+
+\begin{lstlisting}[language=bash]
+  openssl ec -in userS-privkey.pem -pubout -out userS-pubkey.pem
+\end{lstlisting}
+
+donde a partir de nuestra clave privada generamos un archivo de clave pública
+con la clave pública generada. Para ver la información almacenada en el nuevo
+archivo ejecutamos
+
+\begin{lstlisting}[language=bash]
+  openssl ec -in userS-pubkey.pem -pubin -text -noout
+\end{lstlisting}
+
+En este paso podemos comprobar  que el contenido coincide con la información que
+obtuvimos al generar la clave privada.
+
+Procedemos a firmar ahora un mensaje. Creamos un archivo para ello que hemos
+llamado \textit{msg.txt} y procedemos a firmarlo utilizando la clave privada que
+hemos generado con anterioridad.
+
+\begin{lstlisting}[language=bash]
+  openssl dgst -sign userS-privkey.pem -out msg.txt.sign msg.txt
+\end{lstlisting}
+
+Para realizar el cifrado creamos un secreto compartido generado a partir de nuestra clave
+privada y la clave pública del receptor (suponiendo las claves generadas e intercambiadas). Esto lo hacemos por que OpenSSL no nos permite cifrar directamente
+usando el archivo de la clave privada generada en los primeros pasos.
+
+\begin{lstlisting}[language=bash]
+  openssl pkeyutl -derive -inkey userS-privkey.pem \
+    -peerkey userR-pubkey.pem -out secret.txt
+\end{lstlisting}
+
+Ciframos ahora utilizando el archivo \textit{secreto.txt} generado como clave
+
+\begin{lstlisting}[language=bash]
+  openssl enc -aes-256-cbc -md sha512 -pbkdf2 -iter 100000 -salt \
+   -in msg.txt -out msg.txt.enc -pass file:secret.txt
+\end{lstlisting}
+
+además le hemos indicado que usamos \textit{sha512} como función de resumen y
+\textit{aes-256-cbc} como sistema de cifrado.
+
+Ahora el receptor del mensaje debe seguir los siguientes pasos. En
+primer lugar crea el mismo secreto, pero esta vez usando su clave privada y la clave pública del emisor
+
+\begin{lstlisting}[language=bash]
+  openssl pkeyutl -derive -inkey userR-privkey.pem -peerkey \
+    userS-pubkey.pem -out secret.txt
+\end{lstlisting}
+
+Para descrifrar se añade la opción \texttt{-d}
+
+\begin{lstlisting}[language=bash]
+  openssl enc -aes-256-cbc -md sha512 -pbkdf2 -iter 100000 -salt -d \
+    -in msg.txt.enc -out msg.txt -pass file:secret.txt
+\end{lstlisting}
+
+Y por último para verificar la firma del documento usamos la clave pública del emisor y el documento de la firma sobre el documento que hemos
+obtenido al descifrar.
+
+\begin{lstlisting}[language=bash]
+  openssl dgst -verify userS-pubkey.pem -signature msg.txt.sign msg.txt
+\end{lstlisting}
+
+
+\end{document}
