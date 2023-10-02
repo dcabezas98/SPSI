@@ -3,7 +3,7 @@
 
 - Tasks carried out alongside [@patriciacorhid](https://github.com/patriciacorhid).
 - Cryptography work on Elliptic Curves carried out alongside [@patriciacorhid](https://github.com/patriciacorhid) and [@yabirgb](https://github.com/yabirgb).
-- Snippets and exam carried out alongside [@patriciacorhid](https://github.com/patriciacorhid), [@yabirgb](https://github.com/yabirgb) and [@pilarnavarro](https://github. com/pilarnavarro).
+- Snippets and exam carried out alongside [@patriciacorhid](https://github.com/patriciacorhid), [@yabirgb](https://github.com/yabirgb) and [@pilarnavarro](https://github.com/pilarnavarro).
 
 #### Seguridad y Protección de Sistemas Informáticos
 
